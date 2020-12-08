@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="piano.png" type="image/gif" sizes="16x16">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="간단한 오실레이터">
+    <meta property="og:description" content="JavsScript로 구현된 간단한 오실레이터 입니다!">
+    <title>간단한 오실레이터</title>
+    <style>
+        #maincanvas {
+            border: solid;
+            border-width: 2px;
+            border-color: black;
+        }
+        input {
+            width: 25px;
+        }
+        #setting {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="setting">
+        <button id="emptybt">empty</button>
+        <button id="sawbt">saw</button>
+        <button id="pulsebt">pulse</button>
+        <button id="sinbt">sin</button>
+        <br>
+        <canvas id="maincanvas"></canvas><br>
+        decay : <input type="text" id="decayinput" value="0.2">초 <br>
+        octave : <input type="text" id="octaveinput" value="1">배 <br>
+        volume : <input type="text" id="volumeinput" value="1">배 <br>
+    </div>
+    <div id="keyboard">
+        <div id="blackkey"></div>
+        <div id="whitekey"></div>
+    </div>
+
+</body>
+<script>
+var canvasbuffer = 100;
+var canvas;
+var context;
+var waveform = [];
+document.body.onload = function() {
+    canvas = document.getElementById("maincanvas");
+    canvas.width = canvasbuffer;
+    canvas.height = canvasbuffer
+    context = canvas.getContext("2d");
+    context.lineWidth = 1;
+    context.strokeStyle = "black";
+    draw(canvasbuffer, canvasbuffer);
+    getwaveform();
+    canvas.addEventListener("mousemove", function (e) { move(e) }, false);
+    canvas.addEventListener("mousedown", function (e) { down(e) }, false);
+    canvas.addEventListener("mouseup", function (e) { up(e) }, false);
+    canvas.addEventListener("mouseout", function (e) { out(e) }, false);
+}
+
+var startX = 0;
+var startY = 0; 
+var drawing = false;
+
+function draw(curX, curY) {
+    context.beginPath();
+    context.moveTo(startX, startY);
+    context.lineTo(curX, curY);
+    context.stroke()
+}
+function getwaveform() {
+    for (var i = 0; i < canvasbuffer; i++) {
+        for (var j = 0; j < canvasbuffer; j++) {
+            if(context.getImageData(i, j, i + 1, j + 1).data[3] > 50)
+                break;
+        }
+        waveform[i] = (j / canvasbuffer) * 2 - 1;
+    }
+    console.log("new waveform", waveform)
+}
+document.getElementById("emptybt").onclick = function() {
+    context.clearRect(0, 0, canvasbuffer, canvasbuffer);
+    getwaveform();
+}
+document.getElementById("sawbt").onclick = function() {
+    context.clearRect(0, 0, canvasbuffer, canvasbuffer);
+    startX=0;
+    startY=0;
+    draw(200, 200);
+    getwaveform();
+}
+document.getElementById("pulsebt").onclick = function() {
+    context.clearRect(0, 0, canvasbuffer, canvasbuffer);
+    startX=0;
+    startY=0;
+    draw(canvasbuffer/2, 0);
+    startX=canvasbuffer/2;
+    startY=0;
+    draw(canvasbuffer/2, canvasbuffer);
+    startX=canvasbuffer/2;
+    startY=canvasbuffer;
+    draw(canvasbuffer, canvasbuffer);
+    getwaveform();
+}
+document.getElementById("sinbt").onclick = function() {
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < canvasbuffer; i++) {
+        startX=i;
+        startY=Math.sin((Math.PI) * i / (canvasbuffer /2)) * (canvasbuffer /2)  + canvasbuffer/2;
+        draw(i + 1, Math.sin((Math.PI) * (i + 1) / (canvasbuffer/2)) * (canvasbuffer /2)  + canvasbuffer/2);
+    }
+    getwaveform();
+}
+function down(e) {
+    startX = e.offsetX; startY = e.offsetY;
+    drawing = true;
+}
+function up(e) {
+    drawing = false;
+    getwaveform();
+}
+function move(e) {
+    if(!drawing) return;
+    var curX = e.offsetX, curY = e.offsetY;
+    draw(curX, curY);
+    startX = curX; startY = curY;
+}
+function out(e) {
+    drawing = false;
+    getwaveform();
+}
+var decay = document.getElementById("decayinput");
+decay.onchange = function() {
+    this.value = Number(this.value);
+    keysload();
+}
+var octave = document.getElementById("octaveinput");
+octave.onchange = function() {
+    this.value = Number(this.value);
+    keysload();
+}
+var volume = document.getElementById("volumeinput");
+volume.onchange = function() {
+    this.value = Number(this.value);
+}
+
+var keyratio = [261.6, 277.1, 293.6, 311.1, 329.6, 349.2, 369.9, 391.9, 415.3, 440.1, 466.1, 493.8];
+var keys = [];
+function keysload() {
+    for (let i = 0; i < 26; i++) {
+        keys[i] = {};
+        keys[i].audioCtx = new window.AudioContext();
+        keys[i].channels = 2;
+        keys[i].frameCount = keys[i].audioCtx.sampleRate * decay.value;
+        keys[i].myArrayBuffer = keys[i].audioCtx.createBuffer(keys[i].channels, keys[i].frameCount, keys[i].audioCtx.sampleRate);
+    }
+}
+keysload();
+
+document.body.addEventListener("keydown", function(e) {
+    if(e.keyCode == 81)
+        play(keyratio[0] * octave.value, keys[0]);
+    if(e.keyCode == 50)
+        play(keyratio[1] * octave.value, keys[1]);
+    if(e.keyCode == 87)
+        play(keyratio[2] * octave.value, keys[2]);
+    if(e.keyCode == 51)
+        play(keyratio[3] * octave.value, keys[3]);
+    if(e.keyCode == 69)
+        play(keyratio[4] * octave.value, keys[4]);
+    if(e.keyCode == 82)
+        play(keyratio[5] * octave.value, keys[5]);
+    if(e.keyCode == 53)
+        play(keyratio[6] * octave.value, keys[6]);
+    if(e.keyCode == 84)
+        play(keyratio[7] * octave.value, keys[7]);
+    if(e.keyCode == 54)
+        play(keyratio[8] * octave.value, keys[8]);
+    if(e.keyCode == 89)
+        play(keyratio[9] * octave.value, keys[9]);
+    if(e.keyCode == 55)
+        play(keyratio[10] * octave.value, keys[10]);
+    if(e.keyCode == 85)
+        play(keyratio[11] * octave.value, keys[11]);
+    if(e.keyCode == 73)
+        play(keyratio[0] * octave.value * 2, keys[12]);
+    if(e.keyCode == 90)
+        play(keyratio[0] * octave.value / 2, keys[13]);
+    if(e.keyCode == 83)
+        play(keyratio[1] * octave.value / 2, keys[14]);
+    if(e.keyCode == 88)
+        play(keyratio[2] * octave.value / 2, keys[15]);
+    if(e.keyCode == 68)
+        play(keyratio[3] * octave.value / 2, keys[16]);
+    if(e.keyCode == 67)
+        play(keyratio[4] * octave.value / 2, keys[17]);
+    if(e.keyCode == 86)
+        play(keyratio[5] * octave.value / 2, keys[18]);
+    if(e.keyCode == 71)
+        play(keyratio[6] * octave.value / 2, keys[19]);
+    if(e.keyCode == 66)
+        play(keyratio[7] * octave.value / 2, keys[20]);
+    if(e.keyCode == 72)
+        play(keyratio[8] * octave.value / 2, keys[21]);
+    if(e.keyCode == 78)
+        play(keyratio[9] * octave.value / 2, keys[22]);
+    if(e.keyCode == 74)
+        play(keyratio[10] * octave.value / 2, keys[23]);
+    if(e.keyCode == 77)
+        play(keyratio[11] * octave.value / 2, keys[24]);
+    if(e.keyCode == 188)
+        play(keyratio[0] * octave.value, keys[25]);
+});
+
+function play(keyratio, keys) {
+    for (var channel = 0; channel < keys.channels; channel++) {
+        var nowBuffering = keys.myArrayBuffer.getChannelData(channel);
+        var count = 1.0;
+        var sub = keyratio / keys.audioCtx.sampleRate;
+        for (var i = 0; i < keys.frameCount; i++) {
+            if(count <= 0)
+                count = 1.0;
+            nowBuffering[i] = waveform[parseInt(count * canvasbuffer - 1, 10)] * (1 - (i + 1) / keys.frameCount) * volume.value;
+            count -= sub / 2;
+        }
+    }
+    var source = keys.audioCtx.createBufferSource();
+    source.buffer = keys.myArrayBuffer;
+    source.connect(keys.audioCtx.destination);
+    source.start();
+    
+}
+</script>
+</html>
